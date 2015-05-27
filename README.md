@@ -19,4 +19,5 @@ Todo
 
 
 we can use this now, the output of jsondb can be fed to jsondb again and queried over
+
 `cat data.json | ./jsondb --sql "select t.txn_id, t.amount from data t"  | ./jsondb --sql="select max(t.amount) from data t"`
