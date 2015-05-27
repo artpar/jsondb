@@ -20,7 +20,7 @@ var format = logging.MustStringFormatter(
 )
 
 func main() {
-	logging.SetLevel(logging.DEBUG, "")
+	logging.SetLevel(logging.ERROR, "")
 	var sqlString, sqlFile, dataFile string
 	flag.StringVar(&sqlString, "sql", "", "-sql='select t.txn_id from D.data t'")
 	flag.StringVar(&sqlFile, "sqlfile", "", "-sqlfile=1.sql")

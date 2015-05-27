@@ -26,12 +26,54 @@ func evaluateNodeList(node sqlparser.Node, jsonNode gabs.Container, tableMap Tab
 			subMaxRow = subMaxRowCount
 		}
 	}
+	log.Info("Number of rows to output - %d", subMaxRow)
 	for i := 0; i< nodeCount; i++ {
 		if len(allData[i]) < subMaxRow {
 			allData[i] = Extrapolate(allData[i], subMaxRow)
 		}
 	}
 	return allData, title, isConstant, subMaxRow
+}
+
+func evaluateFunction(functionName string, data [][]string) ([]string, int) {
+	if len(data) < 0 {
+		return []string{}, -1
+	}
+	if (len(data[0]) < 0) {
+		return []string{}, -1
+	}
+	rowCount := len(data[0])
+	columnCount := len(data)
+	var result []string = make([]string, rowCount)
+	switch functionName {
+	case "max" :
+		maxValue := 0.0
+		for i := 0; i<columnCount; i++ {
+			rowValue, err := strconv.ParseFloat(data[i][0], 64)
+			if err != nil {
+				log.Error("Failed to parse float value in max function - %s\n%s", data[i][0], err)
+			}
+			if maxValue < rowValue {
+				maxValue = rowValue
+			}
+		}
+		result = []string{strconv.FormatFloat(maxValue, 'f', -1, 64)}
+		log.Info("Funnction result from %s - %s", functionName, result)
+		return result, 1
+	case "concat":
+		for i := 0; i<rowCount; i++ {
+			finalString := ""
+			for j := 0; j<columnCount; j++ {
+				finalString += data[j][i]
+			}
+			result[i] = finalString
+		}
+		log.Info("Funnction result from %s - %s", functionName, result)
+		return result, -1
+	default:
+		log.Error("Function not found - %s", functionName)
+		return []string{}, -1
+	}
 }
 
 func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMap) ([]string, string, bool, int) {
@@ -50,8 +92,11 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 	case sqlparser.FUNCTION:
 		functionName := string(node.Value)
 		var arguments [][]string
-		arguments, title, isConstant, maxRowCount = evaluateNodeList(*node.Sub[0], jsonNode, tableMap)
+		var titleTemp string
+		arguments, titleTemp, isConstant, maxRowCount = evaluateNodeList(*node.Sub[0], jsonNode, tableMap)
+		title = functionName + titleTemp
 		log.Info("Data for function %s - %s", functionName, arguments)
+		data, maxRowCount = evaluateFunction(functionName, arguments)
 	// todo: apply functionName
 
 	default:
@@ -138,6 +183,19 @@ func max(n... int) int {
 		}
 	}
 	return max
+}
+
+func min(n... int) int {
+	if (len(n)) < 1 {
+		return 0
+	}
+	min := n[0]
+	for i := 1; i<len(n); i++ {
+		if (n[i] < min) {
+			min = n[i]
+		}
+	}
+	return min
 }
 
 

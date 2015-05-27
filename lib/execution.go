@@ -32,7 +32,7 @@ func Execute(executionModel ExecutionModel, data []byte) []map[string]interface{
 		log.Debug("\n\n")
 	}
 
-	finalMaxRowCount := max(rowCountConstraints...)
+	finalMaxRowCount := min(rowCountConstraints...)
 	log.Debug("Total number of rows - ", finalMaxRowCount)
 
 	for i := 0; i < numColumns; i++ {
