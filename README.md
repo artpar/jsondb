@@ -13,7 +13,7 @@ or
 
 
 Todo
-- Only concat and max functions are implemented, need to implement other functions
-- Only + is implemented in math operators, need to implement other functions
+- Only `concat`,`max`,`min` functions are implemented, need to implement other functions
+- Only `+`,`/`,`*`,`%` is implemented in math operators, need to implement other functions
 - The implementation currently might be undefined in certain cases, need to check that.
 
