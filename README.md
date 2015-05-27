@@ -9,7 +9,7 @@ Execute an sql over json data
 
 or
 
-`./jsondb --datafile=data.json --sqlfile=1.sql`
+`./jsondb --data=data.json --sqlfile=1.sql`
 
 
 Todo
