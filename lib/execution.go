@@ -1,9 +1,10 @@
 package jsondb
+
 import (
 	"github.com/artpar/gabs"
 )
 
-func Execute(executionModel ExecutionModel, data []byte) []map[string]interface{} {
+func Execute(executionModel ExecutionModel, data []byte) map[string][]map[string]interface{} {
 	var aliasMap map[string]string = make(map[string]string)
 	from := executionModel.FromTable
 	path := from[0].Node.Sub[0]
@@ -25,7 +26,7 @@ func Execute(executionModel ExecutionModel, data []byte) []map[string]interface{
 	for i, column := range executionModel.Columns {
 		PrintNodeRecurse(&column.Node, 0)
 		columnData[i], columnName[i], isConstant[i], maxRowCount[i] = extractColumn(column, *json, aliasMap)
-		if (maxRowCount[i] > -1) {
+		if maxRowCount[i] > -1 {
 			rowCountConstraints = append(rowCountConstraints, maxRowCount[i])
 		}
 		log.Debug("Column Data [%s](%s) - %s", columnName[i], isConstant[i], columnData[i])
@@ -41,11 +42,11 @@ func Execute(executionModel ExecutionModel, data []byte) []map[string]interface{
 		}
 	}
 	outArray := make([]map[string]interface{}, finalMaxRowCount)
-	for i := 0; i<finalMaxRowCount; i++ {
+	for i := 0; i < finalMaxRowCount; i++ {
 		outArray[i] = make(map[string]interface{})
-		for j := 0; j<numColumns; j++ {
+		for j := 0; j < numColumns; j++ {
 			outArray[i][columnName[j]] = columnData[j][i]
 		}
 	}
-	return outArray
+	return map[string][]map[string]interface{}{"data": outArray}
 }
