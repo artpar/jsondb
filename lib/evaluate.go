@@ -1,11 +1,11 @@
 package jsondb
+
 import (
-	"strconv"
+	"code.google.com/p/vitess/go/vt/sqlparser"
 	"fmt"
 	"github.com/artpar/gabs"
-	"code.google.com/p/vitess/go/vt/sqlparser"
+	"strconv"
 )
-
 
 func evaluateNodeList(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMap) ([][]string, string, bool, int) {
 	var nodeCount = len(node.Sub)
@@ -14,7 +14,7 @@ func evaluateNodeList(node sqlparser.Node, jsonNode gabs.Container, tableMap Tab
 	isConstant := true
 	paramConstants := make([]bool, nodeCount)
 	subMaxRow := -1
-	for i := 0; i<nodeCount; i++ {
+	for i := 0; i < nodeCount; i++ {
 		tempData, tempTitle, tempConstant, subMaxRowCount := EvaluateNode(*node.Sub[i], jsonNode, tableMap)
 		if !tempConstant {
 			isConstant = false
@@ -27,7 +27,7 @@ func evaluateNodeList(node sqlparser.Node, jsonNode gabs.Container, tableMap Tab
 		}
 	}
 	log.Info("Number of rows to output - %d", subMaxRow)
-	for i := 0; i< nodeCount; i++ {
+	for i := 0; i < nodeCount; i++ {
 		if len(allData[i]) < subMaxRow {
 			allData[i] = Extrapolate(allData[i], subMaxRow)
 		}
@@ -39,16 +39,16 @@ func evaluateFunction(functionName string, data [][]string) ([]string, int) {
 	if len(data) < 0 {
 		return []string{}, -1
 	}
-	if (len(data[0]) < 0) {
+	if len(data[0]) < 0 {
 		return []string{}, -1
 	}
 	rowCount := len(data[0])
 	columnCount := len(data)
 	var result []string = make([]string, rowCount)
 	switch functionName {
-	case "max" :
+	case "max":
 		maxValue := 0.0
-		for i := 0; i<columnCount; i++ {
+		for i := 0; i < columnCount; i++ {
 			rowValue, err := strconv.ParseFloat(data[i][0], 64)
 			if err != nil {
 				log.Error("Failed to parse float value in max function - %s\n%s", data[i][0], err)
@@ -60,10 +60,25 @@ func evaluateFunction(functionName string, data [][]string) ([]string, int) {
 		result = []string{strconv.FormatFloat(maxValue, 'f', -1, 64)}
 		log.Info("Funnction result from %s - %s", functionName, result)
 		return result, 1
+	case "min":
+		maxValue := 0.0
+		for i := 0; i < columnCount; i++ {
+			rowValue, err := strconv.ParseFloat(data[i][0], 64)
+			if err != nil {
+				log.Error("Failed to parse float value in min function - %s\n%s", data[i][0], err)
+			}
+			if maxValue > rowValue {
+				maxValue = rowValue
+			}
+		}
+		result = []string{strconv.FormatFloat(maxValue, 'f', -1, 64)}
+		log.Info("Funnction result from %s - %s", functionName, result)
+		return result, 1
+
 	case "concat":
-		for i := 0; i<rowCount; i++ {
+		for i := 0; i < rowCount; i++ {
 			finalString := ""
-			for j := 0; j<columnCount; j++ {
+			for j := 0; j < columnCount; j++ {
 				finalString += data[j][i]
 			}
 			result[i] = finalString
@@ -86,7 +101,7 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 
 	case sqlparser.NUMBER:
 		return []string{string(node.Value)}, string(node.Value), true, maxRowCount
-	case sqlparser.AS :
+	case sqlparser.AS:
 		data, _, isConstant, maxRowCount = EvaluateNode(*node.Sub[0], jsonNode, tableMap)
 		title = string(node.Sub[1].Value)
 	case sqlparser.FUNCTION:
@@ -100,7 +115,7 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 	// todo: apply functionName
 
 	default:
-		if (len(node.Value) > 0) {
+		if len(node.Value) > 0 {
 			switch node.Value[0] {
 			case '.':
 				isConstant = false
@@ -116,13 +131,13 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 					strVal, ok := d.(string)
 					if ok {
 						data = append(data, strVal)
-					}else {
+					} else {
 						data = append(data, fmt.Sprintf("%#v", d))
 					}
 				}
 				maxRowCount = len(data)
 				title = string(tableColumn.Value)
-			case '+':
+			case '+', '-', '/', '*', '%':
 				valLeft, titleLeft, isLeftConstant, maxRowLeft := EvaluateNode(*node.Sub[0], jsonNode, tableMap)
 				valRight, titleRight, isRightConstant, maxRowRight := EvaluateNode(*node.Sub[1], jsonNode, tableMap)
 				maxRowCount = max(maxRowLeft, maxRowRight)
@@ -143,12 +158,11 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 					}
 				}
 
-
 				leftCount := len(valLeft)
 				rightCount := len(valRight)
 				maxCount := max(leftCount, rightCount)
 				data = make([]string, maxCount)
-				for i := 0; i< maxCount; i++ {
+				for i := 0; i < maxCount; i++ {
 					valLeftFloat, ok := strconv.ParseFloat(valLeft[i], 64)
 					if ok != nil {
 						log.Error("Failed to parse valLeft %s as float", valLeft[i])
@@ -160,10 +174,9 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 						log.Error("Failed to parse valRight %s as float", valRight[i])
 						valRightFloat = 0
 					}
-					result := valLeftFloat + valRightFloat
+					result := evaluateMathSymbol(valLeftFloat, valRightFloat, '+')
 					data[i] = string(strconv.FormatFloat(result, 'f', -1, 64))
 				}
-
 
 				title = titleLeft + titleRight
 			}
@@ -172,38 +185,54 @@ func EvaluateNode(node sqlparser.Node, jsonNode gabs.Container, tableMap TableMa
 	return data, title, isConstant, maxRowCount
 }
 
-func max(n... int) int {
+func evaluateMathSymbol(i, j float64, symbol byte) float64 {
+	switch symbol {
+	case '+':
+		return i + j
+	case '-':
+		return i - j
+	case '/':
+		return i / j
+	case '*':
+		return i * j
+	case '%':
+		return float64(int(i) % int(j))
+
+	default:
+		log.Error("Undefined symbol passed - ", symbol)
+		return 0
+	}
+}
+
+func max(n ...int) int {
 	if (len(n)) < 1 {
 		return 0
 	}
 	max := n[0]
-	for i := 1; i<len(n); i++ {
-		if (n[i] > max) {
+	for i := 1; i < len(n); i++ {
+		if n[i] > max {
 			max = n[i]
 		}
 	}
 	return max
 }
 
-func min(n... int) int {
+func min(n ...int) int {
 	if (len(n)) < 1 {
 		return 0
 	}
 	min := n[0]
-	for i := 1; i<len(n); i++ {
-		if (n[i] < min) {
+	for i := 1; i < len(n); i++ {
+		if n[i] < min {
 			min = n[i]
 		}
 	}
 	return min
 }
 
-
-
 func extractColumn(column ColumnExpression, jsonNode gabs.Container, tableMap TableMap) ([]string, string, bool, int) {
 	return EvaluateNode(column.Node, jsonNode, tableMap)
 }
-
 
 func Extrapolate(data []string, finalLength int) []string {
 	if len(data) > 1 {
@@ -214,10 +243,9 @@ func Extrapolate(data []string, finalLength int) []string {
 	if len(data) == 0 {
 		return finalData
 	}
-	for i := 0; i< finalLength; i++ {
+	for i := 0; i < finalLength; i++ {
 		finalData[i] = data[0]
 	}
 	return finalData
 
 }
-
